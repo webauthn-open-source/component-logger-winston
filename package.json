@@ -34,7 +34,7 @@
     "sinon": "^1.17.6"
   },
   "dependencies": {
-    "component-class": "^0.9.3",
+    "simple-component-manager": "^0.9.3",
     "winston": "^2.4.1"
   }
 }

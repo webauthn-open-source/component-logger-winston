@@ -3,6 +3,16 @@
 const WinstonLogger = require("../index.js");
 const assert = require("chai").assert;
 const sinon = require("sinon");
+const path = require("path");
+const fs = require("fs");
+
+function rmfile(filename) {
+    try {
+        fs.unlinkSync(filename);
+    } catch (err) {
+        // continue regardless of error
+    }
+}
 
 var dummyComponentManager = {
     registerType: function() {},
@@ -83,21 +93,53 @@ describe("winston logger", function() {
         assert.strictEqual(lvl, "silent");
     });
 
-    it("set console transport", function() {
+    it("sets console transport", function() {
         var logger = new WinstonLogger(dummyComponentManager, "logger");
+        assert.isArray(logger.transportList);
+        assert.strictEqual(logger.transportList.length, 0);
+
         logger.addTransport({
             type: "console",
-            json: true
+            colorize: true,
+            json: false,
+            // prettyPrint: true
         });
 
-        logger.info("foo");
+        logger.info("testing 1 2 3");
+
+        assert.isArray(logger.transportList);
+        assert.strictEqual(logger.transportList.length, 1);
     });
-    it("set multiple transports");
-    it("sets file transport");
-    it("sets console transport");
+
+    it("sets file transport", function(done) {
+        this.slow(500); // eslint-disable-line no-invalid-this
+        var filename = path.join(__dirname, "test.log");
+        rmfile(filename);
+        var logger = new WinstonLogger(dummyComponentManager, "logger");
+        logger.addTransport({
+            type: "file",
+            filename: filename
+        });
+
+        assert.isArray(logger.transportList);
+        assert.strictEqual(logger.transportList.length, 1);
+
+        logger.info("foo");
+
+        // this is lame, but trying to flush winston isn't easy...
+        setTimeout(() => {
+            let fileContents = fs.readFileSync(filename, "utf8");
+            let expectedContents = new RegExp(`{"component":"logger","level":"info","message":"foo","timestamp":\\d+}`);
+            assert.match(fileContents, expectedContents);
+            rmfile(filename);
+            done();
+        }, 100);
+    });
+
+    it("sets multiple transports");
 });
 
-describe("default logger messages", function() {
+describe("winston logger messages", function() {
     var log;
     var stdoutSpy, stderrSpy;
 
@@ -105,7 +147,8 @@ describe("default logger messages", function() {
         log = new WinstonLogger(dummyComponentManager, "logger");
         log.addTransport({
             type: "console",
-            json: true
+            json: false,
+            color: false
         });
 
         stdoutSpy = sinon.spy(process.stdout, "write");
@@ -122,13 +165,9 @@ describe("default logger messages", function() {
         log.error("something bad");
         assert.strictEqual(stderrSpy.callCount, 1);
         assert.strictEqual(stdoutSpy.callCount, 0);
-        var msg =
-            "{\n" +
-            "  \"component\": \"logger\",\n" +
-            "  \"level\": \"error\",\n" +
-            "  \"message\": \"something bad\"\n" +
-            "}\n";
-        assert.strictEqual(stderrSpy.args[0][0], msg);
+        let msgRegExp =
+            /^\[\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}Z\] \[ERROR::logger\] something bad \n$/;
+        assert.match(stderrSpy.args[0][0], msgRegExp);
         log.warn("will robinson");
         assert.strictEqual(stderrSpy.callCount, 1);
         assert.strictEqual(stdoutSpy.callCount, 0);
@@ -136,81 +175,57 @@ describe("default logger messages", function() {
 
     it("error", function() {
         log.error("something bad");
-        var msg =
-            "{\n" +
-            "  \"component\": \"logger\",\n" +
-            "  \"level\": \"error\",\n" +
-            "  \"message\": \"something bad\"\n" +
-            "}\n";
+        let msgRegExp =
+            /^\[\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}Z\] \[ERROR::logger\] something bad \n$/;
         assert.strictEqual(stderrSpy.callCount, 1);
         assert.strictEqual(stdoutSpy.callCount, 0);
-        assert.strictEqual(stderrSpy.args[0][0], msg);
+        assert.match(stderrSpy.args[0][0], msgRegExp);
     });
 
     it("warn", function() {
         log.warn("will robinson");
-        var msg =
-            "{\n" +
-            "  \"component\": \"logger\",\n" +
-            "  \"level\": \"warn\",\n" +
-            "  \"message\": \"will robinson\"\n" +
-            "}\n";
+        let msgRegExp =
+            /^\[\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}Z\] \[WARN::logger\] will robinson \n$/;
         assert.strictEqual(stderrSpy.callCount, 0);
         assert.strictEqual(stdoutSpy.callCount, 1);
-        assert.strictEqual(stdoutSpy.args[0][0], msg);
+        assert.match(stdoutSpy.args[0][0], msgRegExp);
     });
 
     it("info", function() {
         log.info("info test");
-        var msg =
-            "{\n" +
-            "  \"component\": \"logger\",\n" +
-            "  \"level\": \"info\",\n" +
-            "  \"message\": \"info test\"\n" +
-            "}\n";
+        let msgRegExp =
+            /^\[\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}Z\] \[INFO::logger\] info test \n$/;
         assert.strictEqual(stderrSpy.callCount, 0);
         assert.strictEqual(stdoutSpy.callCount, 1);
-        assert.strictEqual(stdoutSpy.args[0][0], msg);
+        assert.match(stdoutSpy.args[0][0], msgRegExp);
     });
 
     it("verbose", function() {
         log.verbose("verbose test");
-        var msg =
-            "{\n" +
-            "  \"component\": \"logger\",\n" +
-            "  \"level\": \"verbose\",\n" +
-            "  \"message\": \"verbose test\"\n" +
-            "}\n";
+        let msgRegExp =
+            /^\[\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}Z\] \[VERBOSE::logger\] verbose test \n$/;
         assert.strictEqual(stderrSpy.callCount, 0);
         assert.strictEqual(stdoutSpy.callCount, 1);
-        assert.strictEqual(stdoutSpy.args[0][0], msg);
+        assert.match(stdoutSpy.args[0][0], msgRegExp);
     });
 
     it("debug", function() {
         log.debug("debug test");
-        var msg =
-            "{\n" +
-            "  \"component\": \"logger\",\n" +
-            "  \"level\": \"debug\",\n" +
-            "  \"message\": \"debug test\"\n" +
-            "}\n";
+        let msgRegExp =
+            /^\[\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}Z\] \[DEBUG::logger\] debug test \n$/;
         assert.strictEqual(stderrSpy.callCount, 1);
         assert.strictEqual(stdoutSpy.callCount, 0);
-        assert.strictEqual(stderrSpy.args[0][0], msg);
+        assert.match(stderrSpy.args[0][0], msgRegExp);
     });
 
     it("silly", function() {
         log.config("set-level", "silly");
         log.silly("silly test");
-        var msg =
-            "{\n" +
-            "  \"component\": \"logger\",\n" +
-            "  \"level\": \"silly\",\n" +
-            "  \"message\": \"silly test\"\n" +
-            "}\n";
+        let msgRegExp =
+            /^\[\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}Z\] \[SILLY::logger\] silly test \n$/;
         assert.strictEqual(stderrSpy.callCount, 0);
         assert.strictEqual(stdoutSpy.callCount, 1);
-        assert.strictEqual(stdoutSpy.args[0][0], msg);
+        assert.match(stdoutSpy.args[0][0], msgRegExp);
     });
 
     it("silent", function() {
@@ -224,4 +239,6 @@ describe("default logger messages", function() {
         assert.strictEqual(stderrSpy.callCount, 0);
         assert.strictEqual(stdoutSpy.callCount, 0);
     });
+
+    it("correct console formatting");
 });
