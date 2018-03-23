@@ -1,6 +1,6 @@
 {
   "name": "component-logger-winston",
-  "version": "0.0.1",
+  "version": "1.0.0-alpha1",
   "description": "A logger component for winston",
   "main": "index.js",
   "scripts": {
@@ -34,7 +34,7 @@
     "sinon": "^1.17.6"
   },
   "dependencies": {
-    "simple-component-manager": "^0.9.3",
+    "simple-component-manager": "1.0.0-alpha1",
     "winston": "^2.4.1"
   }
 }
