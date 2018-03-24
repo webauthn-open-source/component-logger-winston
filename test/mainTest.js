@@ -137,6 +137,7 @@ describe("winston logger", function() {
     });
 
     it("sets multiple transports");
+    it("can create multiple versions of the logger without screwing up the config");
 });
 
 describe("winston logger messages", function() {
