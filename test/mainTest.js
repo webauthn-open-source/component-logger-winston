@@ -115,14 +115,15 @@ describe("winston logger", function() {
         this.slow(500); // eslint-disable-line no-invalid-this
         var filename = path.join(__dirname, "test.log");
         rmfile(filename);
+        console.log("filename", filename);
         var logger = new WinstonLogger(dummyComponentManager, "logger");
         logger.addTransport({
             type: "file",
             filename: filename
         });
 
-        assert.isArray(logger.transportList);
-        assert.strictEqual(logger.transportList.length, 1);
+        assert.isArray(c.transportList);
+        assert.strictEqual(c.transportList.length, 1);
 
         logger.info("foo");
 
@@ -136,8 +137,88 @@ describe("winston logger", function() {
         }, 100);
     });
 
-    it("sets multiple transports");
-    it("can create multiple versions of the logger without screwing up the config");
+    it("sets multiple transports", function(done) {
+        this.slow(500); // eslint-disable-line no-invalid-this
+        var filename = path.join(__dirname, "test.log");
+        rmfile(filename);
+        console.log("filename", filename);
+        var logger = new WinstonLogger(dummyComponentManager, "logger");
+        logger.addTransport({
+            type: "file",
+            filename: filename
+        });
+
+        assert.isArray(logger.transportList);
+        assert.strictEqual(logger.transportList.length, 1);
+
+        logger.addTransport({
+            type: "console",
+            colorize: false,
+            json: false,
+            // prettyPrint: true
+        });
+
+        assert.isArray(logger.transportList);
+        assert.strictEqual(logger.transportList.length, 2);
+
+        // setup spy for stdout
+        var stdoutSpy = sinon.spy(process.stdout, "write");
+        assert.strictEqual(stdoutSpy.callCount, 0);
+
+        // do the logging
+        logger.info("foo");
+
+        // make sure we wrote to stdout
+        assert.strictEqual(stdoutSpy.callCount, 1);
+        let msgRegExp =
+            /^\[\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}Z\] \[INFO::logger\] foo \n$/;
+        assert.match(stdoutSpy.args[0][0], msgRegExp);
+
+        // remove our spy
+        process.stdout.write.restore();
+
+        // check that we wrote to the file
+        // this is lame, but trying to flush winston isn't easy...
+        setTimeout(() => {
+            let fileContents = fs.readFileSync(filename, "utf8");
+            let expectedContents = new RegExp(`{"component":"logger","level":"info","message":"foo","timestamp":\\d+}`);
+            assert.match(fileContents, expectedContents);
+            rmfile(filename);
+            done();
+        }, 100);
+    });
+
+    it("has global transport list", function() {
+        var l1 = new WinstonLogger(dummyComponentManager, "logger");
+        var l2 = new WinstonLogger(dummyComponentManager, "logger");
+        assert.isArray(l1.transportList);
+        assert.strictEqual(l1.transportList.length, 0);
+        assert.isArray(l2.transportList);
+        assert.strictEqual(l2.transportList.length, 0);
+
+        l1.addTransport({
+            type: "console",
+            colorize: false,
+            json: false,
+            // prettyPrint: true
+        });
+
+        assert.isArray(l1.transportList);
+        assert.strictEqual(l1.transportList.length, 1);
+        assert.isArray(l2.transportList);
+        assert.strictEqual(l2.transportList.length, 1);
+
+        var filename = path.join(__dirname, "test.log");
+        l2.addTransport({
+            type: "file",
+            filename: filename
+        });
+
+        assert.isArray(l1.transportList);
+        assert.strictEqual(l1.transportList.length, 2);
+        assert.isArray(l2.transportList);
+        assert.strictEqual(l2.transportList.length, 2);
+    });
 });
 
 describe("winston logger messages", function() {
@@ -159,6 +240,7 @@ describe("winston logger messages", function() {
     afterEach(function() {
         process.stdout.write.restore();
         process.stderr.write.restore();
+        log.shutdown();
     });
 
     it("catches right levels", function() {
